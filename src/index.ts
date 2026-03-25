@@ -23,18 +23,18 @@ const swaggerDocs = swaggerJsdoc(swaggerOptions);
 
 app.use(express.json());
 app.use(cookieParser());
+
+app.use(express.static('public'));
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocs));
+
 app.use(authMiddleware);
 
 app.use('/api', userRouter);
 app.use('/api', currencyRouter);
 
-app.get('/', (req, res) => res.redirect('/api-docs'));
-
 app.listen(PORT, () => {
-  console.log(`\nServer started`);
-  console.log(`Documentation: http://localhost:${PORT}/api-docs`);
-  console.log(`User Profile:  http://localhost:${PORT}/api/user`);
-  console.log(`Currencies:    http://localhost:${PORT}/api/currencies`);
-  console.log(`Rates Example: http://localhost:${PORT}/api/rates?targets=EUR,RUB`);
+  console.log(`\nServer started and running at:`);
+  console.log(`Interface (Dashboard): http://localhost:${PORT}/`);
+  console.log(`Documentation (Docs):  http://localhost:${PORT}/api-docs`);
 });

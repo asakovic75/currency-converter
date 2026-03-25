@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Currency Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0f172a; }
+        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); }
+    </style>
+</head>
+<body class="text-slate-200 min-h-screen pb-12">
+
+    <nav class="border-b border-white/10 mb-12 py-4 bg-slate-900/50">
+        <div class="max-w-5xl mx-auto px-6 flex justify-between items-center">
+            <span class="text-xl font-bold bg-gradient-to-r from-indigo-400 to-cyan-400 bg-clip-text text-transparent">
+                Currency.IO
+            </span>
+            <a href="/api-docs" class="text-sm text-slate-400 hover:text-white transition">Документация API</a>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-6">
+        <header class="mb-12">
+            <h1 class="text-5xl font-extrabold tracking-tight mb-2 text-white">Конвертер Валют</h1>
+        </header>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            
+            <div class="glass p-8 rounded-3xl shadow-2xl">
+                <h2 class="text-sm font-bold text-indigo-400 uppercase tracking-widest mb-6 text-indigo-400">Ваш профиль</h2>
+                
+                <div class="space-y-4 mb-8">
+                    <div>
+                        <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">User ID</p>
+                        <p id="user-id" class="text-sm font-mono truncate text-slate-300 bg-slate-800/50 p-2 rounded-lg">Загрузка...</p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] text-slate-500 uppercase font-bold mb-1">Дата регистрации</p>
+                        <p id="user-date" class="text-sm text-slate-300">Загрузка...</p>
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <label class="block text-sm font-semibold text-slate-300">Базовая валюта</label>
+                    <select id="base-currency" class="w-full bg-slate-800 border border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500 transition cursor-pointer text-white"></select>
+                    <button onclick="updateSettings()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 rounded-xl shadow-lg transition-all active:scale-95">
+                        Обновить профиль
+                    </button>
+                    <p id="status-msg" class="text-xs text-center text-emerald-400 hidden italic">Настройки сохранены!</p>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 glass p-8 rounded-3xl shadow-2xl">
+                <h2 class="text-sm font-bold text-cyan-400 uppercase tracking-widest mb-6">Проверка курсов</h2>
+                
+                <div class="flex flex-col md:flex-row gap-4 mb-8">
+                    <div class="flex-grow">
+                        <label class="block text-xs text-slate-500 uppercase mb-2 ml-1 font-bold">Введите валюты (через запятую)</label>
+                        <input id="target-currencies" type="text" value="EUR,RUB,GBP" class="w-full bg-slate-800 border border-white/10 p-3 rounded-xl outline-none focus:border-cyan-500 transition uppercase tracking-widest text-white">
+                    </div>
+                    <div class="flex items-end">
+                        <button onclick="getRates()" class="w-full md:w-auto bg-white hover:bg-slate-200 text-slate-900 font-bold py-3 px-8 rounded-xl transition-all active:scale-95 shadow-xl">
+                            Узнать цену
+                        </button>
+                    </div>
+                </div>
+
+                <div id="results-container" class="hidden border-t border-white/5 pt-6">
+                    <p class="text-sm text-slate-500 mb-6 ml-1 italic">Результаты конвертации:</p>
+                    <div id="rates-list" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        async function init() {
+            try {
+                const currenciesRes = await fetch('/api/currencies');
+                const userRes = await fetch('/api/user');
+                const currencies = await currenciesRes.json();
+                const user = await userRes.json();
+                
+                document.getElementById('user-id').innerText = user.user_id || "Не найден";
+                
+                if (user.created_at) {
+                    const date = new Date(user.created_at);
+                    document.getElementById('user-date').innerText = date.toLocaleString('ru-RU', {
+                        day: 'numeric', month: 'long', year: 'numeric',
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                }
+
+                const select = document.getElementById('base-currency');
+                currencies.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c; opt.innerText = c;
+                    if(c === user.base_currency) opt.selected = true;
+                    select.appendChild(opt);
+                });
+            } catch (err) { console.error(err); }
+        }
+
+        async function updateSettings() {
+            const base = document.getElementById('base-currency').value;
+            const res = await fetch('/api/user', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ base_currency: base, favorites: [] })
+            });
+            if(res.ok) {
+                const msg = document.getElementById('status-msg');
+                msg.classList.remove('hidden');
+                setTimeout(() => msg.classList.add('hidden'), 3000);
+            }
+        }
+
+        async function getRates() {
+            const targets = document.getElementById('target-currencies').value.toUpperCase();
+            const currentBase = document.getElementById('base-currency').value;
+            
+            const res = await fetch(`/api/rates?targets=${targets}&base=${currentBase}`).then(r => r.json());
+            
+            const container = document.getElementById('results-container');
+            const list = document.getElementById('rates-list');
+            
+            list.innerHTML = '';
+            container.classList.remove('hidden');
+
+            for (const [code, data] of Object.entries(res.rates)) {
+                const fullDateTime = new Date(data.timestamp).toLocaleString('ru-RU', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
+                list.innerHTML += `
+                    <div class="bg-white/5 border border-white/5 p-5 rounded-2xl flex flex-col hover:bg-white/10 transition shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold text-xs border border-cyan-500/30">
+                                    ${code}
+                                </div>
+                                <span class="font-medium text-slate-400 text-sm italic">1 ${res.base} =</span>
+                            </div>
+                            <div class="text-right">
+                                <span class="block text-xl font-bold text-white tracking-wide">${Number(data.rate).toFixed(4)}</span>
+                            </div>
+                        </div>
+                        <div class="mt-auto pt-3 border-t border-white/5 flex flex-col gap-1">
+                             <span class="text-[9px] uppercase tracking-widest text-slate-500">Данные актуальны на:</span>
+                             <span class="text-[10px] font-bold text-cyan-500">${fullDateTime}</span>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        init();
+    </script>
+</body>
+</html>
